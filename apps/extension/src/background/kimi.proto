@@ -1,0 +1,296 @@
+// Kimi API Protobuf 定义
+// 基于 gRPC-Web 协议
+// https://www.kimi.com/apiv2/
+
+syntax = "proto3";
+
+package kimi;
+
+// ============ 通用消息 ============
+
+message Empty {}
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+// ============ Chat 相关 ============
+
+// 消息内容
+message Content {
+  oneof type {
+    string text = 1;
+    // 其他内容类型可扩展
+  }
+}
+
+// 单条消息
+message Message {
+  string role = 1;      // "user", "assistant", "system"
+  Content content = 2;
+}
+
+// 聊天/会话
+message Chat {
+  string id = 1;
+  string name = 2;
+  int64 created_at = 3;
+  int64 updated_at = 4;
+  string model = 5;
+  string workspace_id = 6;
+  bool is_archived = 7;
+  bool is_starred = 8;
+  Message last_message = 9;
+}
+
+// 列表请求基础
+message ListRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+}
+
+// 列表响应基础
+message ListResponse {
+  int32 total = 1;
+  bool has_more = 2;
+}
+
+// 列表会话请求
+message ListChatsRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+  string workspace_id = 3;
+  bool is_archived = 4;
+}
+
+// 列表会话响应
+message ListChatsResponse {
+  repeated Chat chats = 1;
+  int32 total = 2;
+  bool has_more = 3;
+}
+
+// 获取会话请求
+message GetChatRequest {
+  string chat_id = 1;
+}
+
+// 获取会话响应
+message GetChatResponse {
+  Chat chat = 1;
+}
+
+// 创建会话请求
+message CreateChatRequest {
+  string name = 1;
+  string workspace_id = 2;
+  string model = 3;
+}
+
+// 创建会话响应
+message CreateChatResponse {
+  Chat chat = 1;
+}
+
+// 更新会话请求
+message UpdateChatRequest {
+  string chat_id = 1;
+  string name = 2;
+  bool is_starred = 3;
+  bool is_archived = 4;
+}
+
+// 更新会话响应
+message UpdateChatResponse {
+  Chat chat = 1;
+}
+
+// 删除会话请求
+message DeleteChatRequest {
+  string chat_id = 1;
+}
+
+// 删除会话响应
+message DeleteChatResponse {
+  bool success = 1;
+}
+
+// 归档会话请求
+message ArchiveChatRequest {
+  string chat_id = 1;
+}
+
+// 归档会话响应
+message ArchiveChatResponse {
+  Chat chat = 1;
+}
+
+// ============ 消息相关 ============
+
+// 列表消息请求
+message ListMessagesRequest {
+  string chat_id = 1;
+  int32 offset = 2;
+  int32 limit = 3;
+  string parent_id = 4;
+}
+
+// 列表消息响应
+message ListMessagesResponse {
+  repeated Message messages = 1;
+  int32 total = 2;
+  bool has_more = 3;
+}
+
+// ============ Completion (发送消息) ============
+
+// Completion 请求
+message CompletionRequest {
+  string model = 1;
+  repeated Message messages = 2;
+  string conversation_id = 3;
+  string parent_id = 4;
+  bool stream = 5;
+}
+
+// Completion 响应
+message CompletionResponse {
+  string id = 1;
+  string model = 2;
+  repeated Choice choices = 3;
+  Usage usage = 4;
+}
+
+// Completion chunk (流式)
+message CompletionChunk {
+  string id = 1;
+  string model = 2;
+  repeated ChoiceDelta choices = 3;
+}
+
+// Choice
+message Choice {
+  int32 index = 1;
+  Message message = 2;
+  string finish_reason = 3;
+}
+
+// Choice delta (流式)
+message ChoiceDelta {
+  int32 index = 1;
+  Delta delta = 2;
+  string finish_reason = 3;
+}
+
+// Delta
+message Delta {
+  string role = 1;
+  string content = 2;
+}
+
+// Usage
+message Usage {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+}
+
+// ============ Workspace (项目) 相关 ============
+
+// Workspace
+message Workspace {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+  bool is_default = 6;
+  int32 member_count = 7;
+  User owner = 8;
+}
+
+// User
+message User {
+  string id = 1;
+  string name = 2;
+  string avatar = 3;
+}
+
+// 列表工作空间请求
+message ListWorkspacesRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+}
+
+// 列表工作空间响应
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+  int32 total = 2;
+}
+
+// 获取工作空间请求
+message GetWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+// 获取工作空间响应
+message GetWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+// 创建工作空间请求
+message CreateWorkspaceRequest {
+  string name = 1;
+  string description = 2;
+}
+
+// 创建工作空间响应
+message CreateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+// 更新工作空间请求
+message UpdateWorkspaceRequest {
+  string workspace_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+// 更新工作空间响应
+message UpdateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+// 删除工作空间请求
+message DeleteWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+// 删除工作空间响应
+message DeleteWorkspaceResponse {
+  bool success = 1;
+}
+
+// ============ Chat Service ============
+
+service ChatService {
+  rpc ListChats(ListChatsRequest) returns (ListChatsResponse);
+  rpc GetChat(GetChatRequest) returns (GetChatResponse);
+  rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
+  rpc UpdateChat(UpdateChatRequest) returns (UpdateChatResponse);
+  rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
+  rpc ArchiveChat(ArchiveChatRequest) returns (ArchiveChatResponse);
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+  rpc Completion(CompletionRequest) returns (CompletionResponse);
+}
+
+// ============ User/Workspace Service ============
+
+service UserService {
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+}
