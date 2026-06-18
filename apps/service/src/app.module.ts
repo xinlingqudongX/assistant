@@ -7,6 +7,8 @@ import { IssueLedgerModule } from './issues/issue-ledger.module'
 import { ParticipantModule } from './participants/participant.module'
 import { RoomModule } from './room/room.module'
 import { StorageModule } from './storage/storage.module'
+import { McpModule } from './mcp/mcp.module'
+import { DecisionApiModule } from './decision-api/decision-api.module'
 
 @Module({
   imports: [
@@ -19,7 +21,9 @@ import { StorageModule } from './storage/storage.module'
     IssueLedgerModule,
     ParticipantModule,
     RoomModule,
-    StorageModule
+    StorageModule,
+    McpModule,
+    DecisionApiModule
   ]
 })
 export class AppModule {}

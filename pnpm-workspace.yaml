@@ -4,5 +4,6 @@ packages:
 
 onlyBuiltDependencies:
   - '@nestjs/core'
+  - '@scarf/scarf'
   - better-sqlite3
   - esbuild

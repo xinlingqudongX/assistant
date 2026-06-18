@@ -175,7 +175,7 @@ export class LocalWsClient {
       if (this.isConnected()) {
         this.send({ type: 'ping' })
       }
-    }, 30000) // 30秒心跳
+    }, 20000) // 20秒心跳
   }
 
   private stopHeartbeat(): void {

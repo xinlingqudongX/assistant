@@ -1,12 +1,12 @@
 <template>
   <div class="participant-list">
     <div class="section-title">
-      Participants ({{ participants.length }})
+      参与者 ({{ participants.length }})
     </div>
 
     <div v-if="participants.length === 0" class="empty-state">
-      <p>No AI participants detected</p>
-      <p class="hint">Open a ChatGPT or Claude tab to get started</p>
+      <p>未检测到 AI 参与者</p>
+      <p class="hint">打开 ChatGPT 或 Claude 标签页开始使用</p>
     </div>
 
     <div v-else class="participants">
@@ -32,7 +32,7 @@
             class="btn-action"
             @click="$emit('select', participant)"
           >
-            Select
+            选择
           </button>
         </div>
       </div>

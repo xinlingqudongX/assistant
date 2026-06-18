@@ -47,6 +47,18 @@ export class ExtensionMessageService {
   }
 
   /**
+   * 向指定参与者发送事件（不等待响应，仅单向通知）
+   */
+  sendToParticipant(participantId: string, event: string, data: Record<string, unknown>): boolean {
+    const clientId = this.participantConnections.get(participantId)
+    if (!clientId) {
+      this.logger.warn(`sendToParticipant: ${participantId} is not connected`)
+      return false
+    }
+    return this.wsSender.sendToClient(clientId, event, data)
+  }
+
+  /**
    * 发送 prompt 并等待响应
    */
   async sendPrompt(request: PromptRequest): Promise<PromptResponse> {
@@ -76,11 +88,16 @@ export class ExtensionMessageService {
     })
 
     // 发送消息到扩展
+    // 同时携带 task 与 prompt 字段：
+    // - task 是决策流程的标准字段；
+    // - prompt / role 用于兼容扩展 content script（读取 prompt + role）。
     this.wsSender.sendToClient(clientId, 'ai.prompt.execute', {
       type: 'ai.prompt.execute',
       correlationId,
       participantId,
       task,
+      prompt: task,
+      role: 'user',
       context
     })
 

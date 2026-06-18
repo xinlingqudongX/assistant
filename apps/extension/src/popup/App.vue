@@ -11,7 +11,7 @@
 
     <footer class="footer">
       <button class="btn-settings" @click="openSettings">
-        Settings
+        设置
       </button>
     </footer>
   </div>

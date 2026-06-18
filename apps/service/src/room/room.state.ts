@@ -6,6 +6,8 @@ export enum RoomStatus {
   CLOSED = 'closed'
 }
 
+export const DEFAULT_ROOM_ID = 'default_room'
+
 export interface Room {
   id: string
   name: string

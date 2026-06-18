@@ -24,8 +24,8 @@ export interface ExtensionState {
 
 // ============ 常量 ============
 
-const DEFAULT_SERVICE_URL = 'http://localhost:3000'
-const WS_PATH = '/ws/extension'
+const DEFAULT_SERVICE_URL = 'http://localhost:17321'
+const WS_PATH = '/ws'
 const RECONNECT_INTERVAL = 5000
 
 // ============ 全局实例 ============
@@ -175,6 +175,16 @@ function setupWebSocketHandlers(): void {
 function setupMessageListener(): void {
   chrome.runtime.onMessage.addListener(
     (message, sender, sendResponse) => {
+      // 处理 service.updateUrl 消息
+      if (message.type === 'service.updateUrl' && message.url) {
+        updateServiceUrl(message.url).then(() => {
+          sendResponse({ success: true })
+        }).catch((error) => {
+          sendResponse({ success: false, error: String(error) })
+        })
+        return true
+      }
+
       if (!messageRouter) return
 
       messageRouter.handleContentMessage(

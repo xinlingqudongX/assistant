@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common'
-import { RoomState, Room, RoomStatus } from './room.state'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { RoomState, Room, RoomStatus, DEFAULT_ROOM_ID } from './room.state'
+import { SQLiteService } from '../storage/sqlite.service'
 import { IssueLedgerService } from '../issues/issue-ledger.service'
 import { DecisionRecordService } from '../decision/decision-record.service'
 import { ConsensusService } from '../consensus/consensus.service'
@@ -13,22 +14,66 @@ export interface CreateRoomParams {
 }
 
 @Injectable()
-export class RoomService {
+export class RoomService implements OnModuleInit {
   private readonly logger = new Logger(RoomService.name)
 
   constructor(
     private readonly roomState: RoomState,
+    private readonly sqliteService: SQLiteService,
     private readonly issueLedgerService: IssueLedgerService,
     private readonly decisionService: DecisionRecordService,
     private readonly consensusService: ConsensusService
   ) {}
 
   /**
+   * 模块初始化时确保默认房间存在
+   */
+  onModuleInit() {
+    this.initializeDefaultRoom()
+  }
+
+  /**
+   * 初始化默认房间到数据库
+   */
+  private initializeDefaultRoom(): void {
+    try {
+      // 检查数据库中是否已存在默认房间
+      const stmt = this.sqliteService.prepare('SELECT id FROM rooms WHERE id = ?')
+      const existing = stmt.get(DEFAULT_ROOM_ID)
+
+      if (!existing) {
+        // 写入默认房间到数据库
+        const insertStmt = this.sqliteService.prepare(`
+          INSERT INTO rooms (id, name, description, status, created_by, participants, issues, metadata, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        const now = Date.now()
+        insertStmt.run(
+          DEFAULT_ROOM_ID,
+          'Default Room',
+          'AI Council 默认房间',
+          'active',
+          'system',
+          '[]',
+          '[]',
+          '{}',
+          now,
+          now
+        )
+        this.logger.log(`Default room initialized in database: ${DEFAULT_ROOM_ID}`)
+      }
+    } catch (error) {
+      this.logger.warn('Failed to initialize default room:', error)
+    }
+  }
+
+  /**
    * 创建房间
    */
   async createRoom(params: CreateRoomParams): Promise<Room> {
+    const roomId = this.generateRoomId()
     const room: Room = {
-      id: this.generateRoomId(),
+      id: roomId,
       name: params.name,
       description: params.description,
       status: RoomStatus.ACTIVE,
@@ -39,6 +84,25 @@ export class RoomService {
       updatedAt: Date.now()
     }
 
+    // 写入数据库
+    const stmt = this.sqliteService.prepare(`
+      INSERT INTO rooms (id, name, description, status, created_by, participants, issues, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    stmt.run(
+      room.id,
+      room.name,
+      room.description || null,
+      room.status,
+      room.createdBy,
+      JSON.stringify(room.participants),
+      JSON.stringify(room.issues),
+      JSON.stringify(room.metadata || {}),
+      room.createdAt,
+      room.updatedAt
+    )
+
+    // 写入内存
     this.roomState.setRoom(room.id, room)
 
     this.logger.log(`Room created: ${room.id}`)

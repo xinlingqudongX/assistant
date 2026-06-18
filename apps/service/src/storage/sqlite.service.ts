@@ -32,6 +32,8 @@ export class SQLiteService implements OnModuleInit, OnModuleDestroy {
 
     this.db = new Database(this.dbPath)
     this.db.pragma('journal_mode = WAL')
+    // 启用外键约束检查
+    this.db.pragma('foreign_keys = ON')
 
     this.createTables()
   }

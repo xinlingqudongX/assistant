@@ -2,13 +2,13 @@
   <div class="status-panel">
     <div class="status-row">
       <div class="status-item">
-        <span class="status-label">Connection</span>
+        <span class="status-label">连接</span>
         <span class="status-value" :class="connectionStatus">
           {{ connectionStatusText }}
         </span>
       </div>
       <div class="status-item">
-        <span class="status-label">Room</span>
+        <span class="status-label">房间</span>
         <span class="status-value">{{ roomStatus }}</span>
       </div>
     </div>
@@ -22,7 +22,7 @@
 import { ref, computed, onMounted } from 'vue'
 
 const isConnected = ref(false)
-const roomStatus = ref('Disconnected')
+const roomStatus = ref('未连接')
 const lastError = ref<string | null>(null)
 
 const connectionStatus = computed(() => {
@@ -30,7 +30,7 @@ const connectionStatus = computed(() => {
 })
 
 const connectionStatusText = computed(() => {
-  return isConnected.value ? 'Connected' : 'Disconnected'
+  return isConnected.value ? '已连接' : '未连接'
 })
 
 onMounted(() => {
@@ -48,7 +48,7 @@ onMounted(() => {
     .then((response) => {
       if (response) {
         isConnected.value = response.wsConnected || false
-        roomStatus.value = response.roomStatus || 'Disconnected'
+        roomStatus.value = response.roomStatus || '未连接'
       }
     })
     .catch(console.error)

@@ -1,5 +1,5 @@
 /**
- * ChatGPT API 客户端 - 完整版
+ * ChatGPT API 客户端
  * 支持发送消息 + 会话管理（列表/详情/删除/重命名/共享）
  * 
  * 使用 accessToken 通过 ChatGPT 后端 API 调用
@@ -19,7 +19,6 @@ export interface ChatGPTConversationOptions {
   model?: string
   systemMessage?: string
   timeoutMs?: number
-  reverseProxyUrl?: string
 }
 
 export interface ChatGPTResponse {
@@ -46,8 +45,6 @@ export interface ChatGPTConversation {
   create_time_formatted?: string
   update_time_formatted?: string
 }
-
-// ============ 项目管理相关类型 ============
 
 export interface ChatGPTProject {
   id: string
@@ -122,9 +119,8 @@ export interface ShareConversationResult {
 // ============ 常量 ============
 
 const CHATGPT_API_BASE = 'https://chatgpt.com/backend-api'
+const CHATGPT_CONVERSATION_URL = 'https://chatgpt.com/api/conversation'
 const SESSION_URL = 'https://chatgpt.com/api/auth/session'
-const DEFAULT_REVERSE_PROXY = 'https://ai.fakeopen.com/api/conversation'
-const FALLBACK_PROXY = 'https://api.pawan.krd/backend-api/conversation'
 
 // 生成 UUID v4
 function uuidv4(): string {
@@ -137,11 +133,9 @@ function uuidv4(): string {
 
 export class ChatGPTAPIClient {
   private accessToken: string
-  private reverseProxyUrl: string
 
   constructor(options: ChatGPTConversationOptions) {
     this.accessToken = options.accessToken
-    this.reverseProxyUrl = options.reverseProxyUrl || DEFAULT_REVERSE_PROXY
   }
 
   // ============ Token 管理 ============
@@ -262,82 +256,65 @@ export class ChatGPTAPIClient {
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
-      let lastError: Error | null = null
+      // 直接调用 ChatGPT API，不需要代理
+      const response = await fetch(CHATGPT_CONVERSATION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.accessToken}`,
+          'OpenAI-Conversation-Id-Opt-In': 'true',
+          'OpenAI-Organization': ''
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      })
 
-      for (const proxyUrl of [this.reverseProxyUrl, FALLBACK_PROXY]) {
-        try {
-          const response = await fetch(proxyUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.accessToken}`,
-              'OpenAI-Conversation-Id-Opt-In': 'true',
-              'OpenAI-Organization': ''
-            },
-            body: JSON.stringify(body),
-            signal: controller.signal
-          })
-
-          if (!response.ok) {
-            const errorText = await response.text()
-            console.error(`[ChatGPT] Proxy ${proxyUrl} error:`, response.status, errorText)
-            lastError = new Error(`HTTP ${response.status}: ${errorText}`)
-            continue
-          }
-
-          const reader = response.body?.getReader()
-          if (!reader) {
-            throw new Error('No response body')
-          }
-
-          const decoder = new TextDecoder()
-          let buffer = ''
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || ''
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                if (data === '[DONE]') continue
-
-                try {
-                  const parsed = JSON.parse(data)
-                  if (parsed.message?.content?.parts) {
-                    const part = parsed.message.content.parts[0]
-                    if (part !== fullText) {
-                      fullText = part
-                      onProgress?.(part)
-                    }
-                  }
-                  if (parsed.conversation_id) {
-                    responseConversationId = parsed.conversation_id
-                  }
-                  if (parsed.message?.id) {
-                    responseMessageId = parsed.message.id
-                  }
-                } catch {
-                  // 忽略解析错误
-                }
-              }
-            }
-          }
-
-          break
-        } catch (error) {
-          console.error(`[ChatGPT] Proxy ${proxyUrl} failed:`, error)
-          lastError = error as Error
-          continue
-        }
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`HTTP ${response.status}: ${errorText}`)
       }
 
-      if (!fullText && lastError) {
-        throw lastError
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('No response body')
+      }
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.message?.content?.parts) {
+                const part = parsed.message.content.parts[0]
+                if (part !== fullText) {
+                  fullText = part
+                  onProgress?.(part)
+                }
+              }
+              if (parsed.conversation_id) {
+                responseConversationId = parsed.conversation_id
+              }
+              if (parsed.message?.id) {
+                responseMessageId = parsed.message.id
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
       }
 
       return {
@@ -352,7 +329,7 @@ export class ChatGPTAPIClient {
 
   // ============ 会话管理 ============
 
-/**
+  /**
    * 获取会话列表
    */
   async listConversations(offset = 0, limit = 20): Promise<ChatGPTConversation[]> {
@@ -499,7 +476,6 @@ export class ChatGPTAPIClient {
   }): Promise<ChatGPTProject[]> {
     const { offset = 0, limit = 20, filter = 'all' } = options || {}
 
-    // 根据过滤器设置不同的请求参数
     let url = `${CHATGPT_API_BASE}/projects?offset=${offset}&limit=${limit}`
     if (filter === 'owned') {
       url += '&owned_only=true'

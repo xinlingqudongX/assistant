@@ -21,23 +21,14 @@ export class WsSenderService {
   /**
    * 发送消息到客户端
    */
-  sendToClient(clientId: string, event: string, data: any): void {
+  sendToClient(clientId: string, event: string, data: any): boolean {
     if (!this.gateway) {
       this.logger.warn('Gateway not registered')
-      return
+      return false
     }
 
-    try {
-      const socket = this.gateway.server?.sockets?.sockets?.get(clientId)
-      if (socket) {
-        socket.emit(event, data)
-        this.logger.debug(`Message sent to ${clientId}: ${event}`)
-      } else {
-        this.logger.warn(`Client not found: ${clientId}`)
-      }
-    } catch (error) {
-      this.logger.error(`Failed to send message: ${error}`)
-    }
+    const message = { type: event, ...data }
+    return this.gateway.sendToClient(clientId, message)
   }
 
   /**
@@ -49,28 +40,16 @@ export class WsSenderService {
       return
     }
 
-    try {
-      this.gateway.server?.emit(event, data)
-      this.logger.debug(`Broadcast sent: ${event}`)
-    } catch (error) {
-      this.logger.error(`Failed to broadcast: ${error}`)
-    }
+    this.gateway.broadcast(event, data)
   }
 
   /**
    * 发送消息到指定房间
+   * 注：原生 WebSocket 需要自己管理房间
    */
   sendToRoom(room: string, event: string, data: any): void {
-    if (!this.gateway) {
-      this.logger.warn('Gateway not registered')
-      return
-    }
-
-    try {
-      this.gateway.server?.to(room).emit(event, data)
-      this.logger.debug(`Room message sent to ${room}: ${event}`)
-    } catch (error) {
-      this.logger.error(`Failed to send room message: ${error}`)
-    }
+    // 原生 WebSocket 没有房间概念，这里简化处理
+    this.logger.warn(`sendToRoom not fully implemented for native WebSocket`)
+    this.broadcast(event, data)
   }
 }

@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { ParticipantService } from '../participants/participant.service'
+import { ParticipantService, ParticipantStatus } from '../participants/participant.service'
 import { ConsensusService } from '../consensus/consensus.service'
 import { RoomService } from '../room/room.service'
 import { IssueLedgerService } from '../issues/issue-ledger.service'
+import { ExtensionMessageService } from './extension-message.service'
+import { DEFAULT_ROOM_ID } from '../room/room.state'
 
 interface ClientInfo {
   clientId: string
@@ -35,7 +37,8 @@ export class WsMessageRouterService {
     private readonly participantService: ParticipantService,
     private readonly consensusService: ConsensusService,
     private readonly roomService: RoomService,
-    private readonly issueLedgerService: IssueLedgerService
+    private readonly issueLedgerService: IssueLedgerService,
+    private readonly extensionMessageService: ExtensionMessageService
   ) {}
 
   /**
@@ -58,6 +61,13 @@ export class WsMessageRouterService {
       // 清理 participant 映射
       const participantId = this.clientToParticipant.get(clientId)
       if (participantId) {
+        // 同步注销扩展消息连接映射，并标记参与者离线
+        this.extensionMessageService.unregisterParticipantConnection(participantId)
+        try {
+          this.participantService.updateParticipantStatus(participantId, ParticipantStatus.OFFLINE)
+        } catch (error) {
+          this.logger.warn(`Failed to set participant ${participantId} offline: ${error}`)
+        }
         this.participantToClient.delete(participantId)
         this.clientToParticipant.delete(clientId)
       }
@@ -78,6 +88,7 @@ export class WsMessageRouterService {
 
   /**
    * 处理 tab 注册
+   * 已授权的 AI 连接后自动加入默认房间
    */
   async handleTabRegister(
     clientId: string,
@@ -96,13 +107,33 @@ export class WsMessageRouterService {
           tabId: data.tabId,
           connectionId: clientId
         })
+      } else {
+        // 已存在则更新为在线，刷新连接与 tab 信息
+        this.participantService.updateParticipantStatus(data.participantId, ParticipantStatus.ONLINE)
       }
 
       // 建立映射
       this.clientToParticipant.set(clientId, data.participantId)
       this.participantToClient.set(data.participantId, clientId)
 
-      this.logger.log(`Tab registered: ${data.participantId}`)
+      // 桥接到扩展消息服务，使 sendPrompt 能找到该 participant
+      this.extensionMessageService.registerParticipantConnection(data.participantId, clientId)
+
+      // 自动加入默认房间
+      try {
+        const room = this.roomService.addParticipant(DEFAULT_ROOM_ID, data.participantId)
+        if (room) {
+          // 回发 room.joined 通知客户端
+          this.extensionMessageService.sendToParticipant(data.participantId, 'room.joined', {
+            roomId: DEFAULT_ROOM_ID,
+            participantId: data.participantId
+          })
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to join default room for ${data.participantId}: ${error}`)
+      }
+
+      this.logger.log(`Tab registered: ${data.participantId} (joined ${DEFAULT_ROOM_ID})`)
 
       return {
         success: true,
@@ -131,6 +162,17 @@ export class WsMessageRouterService {
         data.participantId,
         data.status as any
       )
+
+      // 离线时注销扩展连接映射，避免向已断开的 participant 发送 prompt
+      if (data.status === ParticipantStatus.OFFLINE) {
+        this.extensionMessageService.unregisterParticipantConnection(data.participantId)
+      } else {
+        // 在线/其它在线态则确保连接映射存在
+        const mapped = this.participantToClient.get(data.participantId)
+        if (mapped) {
+          this.extensionMessageService.registerParticipantConnection(data.participantId, mapped)
+        }
+      }
     }
 
     return { success: true }
